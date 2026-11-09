@@ -1,6 +1,6 @@
 {
   "name": "@mafly/bdev-cli",
-  "version": "0.1.0",
+  "version": "0.0.0-dev",
   "description": "Modern CLI tool for Minecraft Bedrock Edition Addon development",
   "author": "Mafly",
   "license": "MIT",

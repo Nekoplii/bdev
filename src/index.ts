@@ -11,13 +11,14 @@ import {
   getConfigCommand,
   setPathCommand,
 } from "./commands/config.js";
+import { getVersion } from "./utils/version.js";
 
 const program = new Command();
 
 program
   .name("bdev")
   .description("Modern CLI tool for Minecraft Bedrock Edition Addon development")
-  .version("0.1.0");
+  .version(getVersion());
 
 program
   .command("init [directory]")
