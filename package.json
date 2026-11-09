@@ -1,0 +1,30 @@
+{
+  "name": "bdev",
+  "version": "0.1.0",
+  "description": "Modern CLI tool for Minecraft Bedrock Edition Addon development",
+  "bin": {
+    "bdev": "./src/index.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build ./src/index.ts --compile --outfile bdev",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "chokidar": "^4.0.3",
+    "commander": "^13.1.0",
+    "esbuild": "^0.25.0",
+    "esbuild-wasm": "^0.28.2",
+    "ora": "^8.2.0",
+    "picocolors": "^1.1.1",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/node": "^22.13.8",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.7.3"
+  }
+}
