@@ -118,62 +118,87 @@ export async function devCommand(
   logger.info("Press Ctrl+C to stop.");
 
   let isRebuilding = false;
+  let rebuildPending = false;
   let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  const ignoredPatterns: (RegExp | string)[] = [
+    /(^|[/\\])\../, // dotfiles
+    /node_modules/,
+    /dist/,
+  ];
+
+  if (fs.existsSync(srcDir)) {
+    // Ignore entire scripts directory in behavior pack when compiling from src
+    ignoredPatterns.push(/(^|[/\\])behavior_pack[/\\]scripts([/\\].*)?$/);
+  } else {
+    ignoredPatterns.push(/\.map$/);
+  }
+
   const watcher = chokidar.watch(watchPaths, {
-    ignored: [
-      /(^|[/\\])\../, // dotfiles
-      /node_modules/,
-      /dist/,
-      /behavior_pack[/\\]scripts[/\\]main\.js(\.map)?$/, // ignore build output
-    ],
+    ignored: ignoredPatterns,
     persistent: true,
     ignoreInitial: true,
   });
+
+  const runRebuildCycle = async (triggerPath: string) => {
+    isRebuilding = true;
+    rebuildPending = false;
+
+    const rel = path.relative(rootDir, triggerPath);
+
+    try {
+      if (triggerPath.endsWith("manifest.json")) {
+        const res = validateManifest(triggerPath);
+        if (res.valid) {
+          logger.success(`Validated ${rel}`);
+        } else {
+          logger.error(`Invalid manifest in ${rel}:`);
+          res.errors.forEach((e) => console.error(`  - ${e}`));
+        }
+      }
+
+      // Run build if src changed or if script output needed
+      if (fs.existsSync(srcDir)) {
+        const buildOk = await buildCommand(rootDir);
+        if (buildOk && hotReloadServer) {
+          if (hotReloadServer.clientCount > 0) {
+            // Buffer 150ms before reload command so Proton/Wine file cache flushes
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            hotReloadServer.reload();
+            logger.success("Sent /reload to Minecraft via WebSocket");
+          } else {
+            logger.info(
+              `Hot reload skipped (no Minecraft client connected; run /connect localhost:${wsPort} in game)`
+            );
+          }
+        }
+      }
+    } catch (err) {
+      logger.error(`Error during rebuild: ${(err as Error).message}`);
+    } finally {
+      isRebuilding = false;
+      if (rebuildPending) {
+        runRebuildCycle(triggerPath);
+      }
+    }
+  };
 
   const triggerRebuild = (filePath: string) => {
     const rel = path.relative(rootDir, filePath);
     logger.info(`Change detected in ${rel}`);
 
+    if (isRebuilding) {
+      rebuildPending = true;
+      return;
+    }
+
     if (rebuildTimeout) {
       clearTimeout(rebuildTimeout);
     }
 
-    rebuildTimeout = setTimeout(async () => {
-      if (isRebuilding) return;
-      isRebuilding = true;
-
-      try {
-        if (filePath.endsWith("manifest.json")) {
-          const res = validateManifest(filePath);
-          if (res.valid) {
-            logger.success(`Validated ${rel}`);
-          } else {
-            logger.error(`Invalid manifest in ${rel}:`);
-            res.errors.forEach((e) => console.error(`  - ${e}`));
-          }
-        }
-
-        // Run build if src changed or if script output needed
-        if (fs.existsSync(srcDir)) {
-          const buildOk = await buildCommand(rootDir);
-          if (buildOk && hotReloadServer) {
-            if (hotReloadServer.clientCount > 0) {
-              hotReloadServer.reload();
-              logger.success("Sent /reload to Minecraft via WebSocket");
-            } else {
-              logger.info(
-                `Hot reload skipped (no Minecraft client connected; run /connect localhost:${wsPort} in game)`
-              );
-            }
-          }
-        }
-      } catch (err) {
-        logger.error(`Error during rebuild: ${(err as Error).message}`);
-      } finally {
-        isRebuilding = false;
-      }
-    }, 100);
+    rebuildTimeout = setTimeout(() => {
+      runRebuildCycle(filePath);
+    }, 300);
   };
 
   watcher.on("change", triggerRebuild);

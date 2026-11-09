@@ -156,7 +156,7 @@ export function generateManifests(opts: {
   if (opts.hasScript) {
     bpDependencies.push({
       module_name: "@minecraft/server",
-      version: opts.serverVersion || "1.16.0",
+      version: opts.serverVersion || "2.11.0",
     });
   }
 

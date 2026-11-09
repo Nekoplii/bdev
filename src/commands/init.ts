@@ -39,7 +39,7 @@ export async function initCommand(
     hasScript: true,
     hasRp,
     minEngineVersion: [1, 21, 0],
-    serverVersion: "1.16.0",
+    serverVersion: "2.11.0",
   });
 
   // 1. Behavior Pack
@@ -76,25 +76,26 @@ export async function initCommand(
   }
 
   // 3. Scripts / Source code
-  const starterCode = `import { world, system } from "@minecraft/server";
+  const starterCodeTs = `import { world, type Player } from "@minecraft/server";
 
-world.afterEvents.worldInitialize.subscribe(() => {
-  world.sendMessage("Hello from ${projectName}!");
+world.afterEvents.playerSpawn.subscribe((e) => {
+  const player: Player = e.player;
+  player.sendMessage("Welcome!");
 });
+`;
 
-let ticks = 0;
-system.runInterval(() => {
-  ticks++;
-  if (ticks % 100 === 0) {
-    // Periodic tick logic
-  }
-}, 20);
+  const starterCodeJs = `import { world } from "@minecraft/server";
+
+world.afterEvents.playerSpawn.subscribe((e) => {
+  const player = e.player;
+  player.sendMessage("Welcome!");
+});
 `;
 
   if (isTs) {
     const srcDir = path.join(targetDir, "src");
     fs.mkdirSync(srcDir, { recursive: true });
-    fs.writeFileSync(path.join(srcDir, "main.ts"), starterCode);
+    fs.writeFileSync(path.join(srcDir, "main.ts"), starterCodeTs);
 
     // tsconfig.json
     const tsconfig = {
@@ -115,7 +116,7 @@ system.runInterval(() => {
   } else {
     const scriptsDir = path.join(bpDir, "scripts");
     fs.mkdirSync(scriptsDir, { recursive: true });
-    fs.writeFileSync(path.join(scriptsDir, "main.js"), starterCode);
+    fs.writeFileSync(path.join(scriptsDir, "main.js"), starterCodeJs);
   }
 
   // 4. package.json
@@ -130,8 +131,8 @@ system.runInterval(() => {
       package: "bdev package",
     },
     dependencies: {
-      "@minecraft/server": "1.16.0",
-      "@minecraft/server-ui": "1.7.0",
+      "@minecraft/server": "2.11.0",
+      "@minecraft/server-ui": "2.3.0",
     },
   };
 

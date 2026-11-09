@@ -74,8 +74,12 @@ export class BedrockHotReloadServer {
       socket.on("message", (data: string) => {
         try {
           const res = JSON.parse(data.toString());
-          if (res?.body?.statusCode && res.body.statusCode !== 0) {
-            logger.warn(`Minecraft command response: ${res.body.statusMessage || "Error"}`);
+          if (res?.header?.messagePurpose === "commandResponse") {
+            if (res.body?.statusCode && res.body.statusCode !== 0) {
+              logger.warn(`Minecraft command error (${res.body.statusCode}): ${res.body.statusMessage || "Error"}`);
+            } else if (res.body?.statusMessage) {
+              logger.info(`Minecraft: ${res.body.statusMessage}`);
+            }
           }
         } catch {
           // Ignore non-json responses
@@ -87,7 +91,8 @@ export class BedrockHotReloadServer {
         logger.info("Minecraft disconnected from WebSocket.");
       });
 
-      socket.on("error", () => {
+      socket.on("error", (err: Error) => {
+        logger.warn(`WebSocket client error: ${err.message}`);
         this.clients.delete(socket);
       });
     });
