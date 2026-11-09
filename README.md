@@ -20,13 +20,13 @@ A simple CLI tool for Minecraft Bedrock Edition addon development.
 ### Option 1: Via NPM (Recommended)
 
 ```bash
-npm install -g bdev
+npm install -g @mafly/bdev-cli
 ```
 
 Or run directly without installing:
 
 ```bash
-npx bdev --help
+npx @mafly/bdev-cli --help
 ```
 
 ### Option 2: Standalone Binary
