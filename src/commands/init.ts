@@ -207,10 +207,16 @@ ${projectDesc}
 
 ## Development
 
-Run development watcher (auto builds and syncs with Bedrock):
+Run development watcher (auto builds, symlinks, and starts WebSocket hot reload):
 \`\`\`bash
 bdev dev
 \`\`\`
+
+In your Minecraft world (cheats enabled), connect the game to bdev hot reload:
+\`\`\`
+/connect localhost:8000
+\`\`\`
+Whenever you save script files, bdev will automatically execute \`/reload\` in game.
 
 To configure your \`com.mojang\` Bedrock directory:
 \`\`\`bash

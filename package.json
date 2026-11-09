@@ -19,12 +19,14 @@
     "esbuild-wasm": "^0.28.2",
     "ora": "^8.2.0",
     "picocolors": "^1.1.1",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "ws": "^8.22.2"
   },
   "devDependencies": {
     "@types/archiver": "^6.0.3",
     "@types/node": "^22.13.8",
     "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.2",
     "typescript": "^5.7.3"
   }
 }

@@ -53,9 +53,11 @@ program
 
 program
   .command("dev [directory]")
-  .description("Symlink packs to com.mojang and watch for changes")
+  .description("Symlink packs to com.mojang, start hot-reload WebSocket, and watch for changes")
   .option("-p, --path <path>", "Custom com.mojang directory path")
   .option("-s, --save", "Save custom path to bdev.json for future use")
+  .option("-P, --port <port>", "WebSocket server port for Minecraft hot reload", "8000")
+  .option("--no-ws", "Disable WebSocket hot reload server")
   .option("--no-link", "Skip creating symlinks to development directories")
   .action(async (directory, options) => {
     try {

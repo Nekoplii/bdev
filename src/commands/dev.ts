@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import chokidar from "chokidar";
+import pc from "picocolors";
 import { buildCommand } from "./build.js";
 import { findMojangPath, linkPack } from "../utils/mojang.js";
 import { saveConfig } from "../utils/config.js";
+import { BedrockHotReloadServer } from "../utils/wsserver.js";
 import { logger } from "../utils/logger.js";
 import { validateManifest } from "../utils/manifest.js";
 
@@ -11,6 +13,8 @@ export interface DevOptions {
   path?: string;
   link?: boolean;
   save?: boolean;
+  port?: number;
+  ws?: boolean;
 }
 
 export async function devCommand(
@@ -77,7 +81,27 @@ export async function devCommand(
     }
   }
 
-  // 3. Start chokidar watcher
+  // 3. Start WebSocket Hot Reload server
+  const enableWs = options.ws !== false;
+  let hotReloadServer: BedrockHotReloadServer | null = null;
+  let wsPort = options.port ? Number(options.port) : 8000;
+
+  if (enableWs) {
+    try {
+      hotReloadServer = new BedrockHotReloadServer(wsPort);
+      wsPort = await hotReloadServer.start();
+      console.log();
+      logger.info(pc.bold(`Hot Reload WebSocket server active on ${pc.cyan(`ws://localhost:${wsPort}`)}`));
+      logger.info(
+        pc.yellow(`To connect in Minecraft (cheats on): ${pc.bold(`/connect localhost:${wsPort}`)}`)
+      );
+      console.log();
+    } catch (err) {
+      logger.error(`Failed to start WebSocket hot reload server: ${(err as Error).message}`);
+    }
+  }
+
+  // 4. Start chokidar watcher
   const watchPaths: string[] = [];
   const srcDir = path.join(rootDir, "src");
   if (fs.existsSync(srcDir)) {
@@ -132,7 +156,17 @@ export async function devCommand(
 
         // Run build if src changed or if script output needed
         if (fs.existsSync(srcDir)) {
-          await buildCommand(rootDir);
+          const buildOk = await buildCommand(rootDir);
+          if (buildOk && hotReloadServer) {
+            if (hotReloadServer.clientCount > 0) {
+              hotReloadServer.reload();
+              logger.success("Sent /reload to Minecraft via WebSocket");
+            } else {
+              logger.info(
+                `Hot reload skipped (no Minecraft client connected; run /connect localhost:${wsPort} in game)`
+              );
+            }
+          }
         }
       } catch (err) {
         logger.error(`Error during rebuild: ${(err as Error).message}`);
@@ -147,10 +181,12 @@ export async function devCommand(
   watcher.on("unlink", triggerRebuild);
 
   // Handle graceful exit
-  process.on("SIGINT", () => {
-    logger.info("Stopping watcher...");
-    watcher.close().then(() => {
-      process.exit(0);
-    });
+  process.on("SIGINT", async () => {
+    logger.info("Stopping dev server and watcher...");
+    await watcher.close();
+    if (hotReloadServer) {
+      await hotReloadServer.stop();
+    }
+    process.exit(0);
   });
 }
