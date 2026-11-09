@@ -7,11 +7,15 @@ export interface BedrockCommandRequest {
   header: {
     version: number;
     requestId: string;
+    messageType: "commandRequest";
     messagePurpose: "commandRequest";
   };
   body: {
-    commandLine: string;
     version: number;
+    commandLine: string;
+    origin: {
+      type: "player";
+    };
   };
 }
 
@@ -53,17 +57,21 @@ export class BedrockHotReloadServer {
       this.clients.add(socket);
       logger.success(pc.green("Minecraft connected to WebSocket hot reload!"));
 
-      // Send welcome message in Minecraft chat
-      this.sendCommandToSocket(
-        socket,
-        'tellraw @a {"rawtext":[{"text":"§a[bdev] Connected to hot reload server!"}]}'
-      );
+      // Delay welcome message 500ms so Bedrock completes internal handshake
+      setTimeout(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          this.sendCommandToSocket(
+            socket,
+            'tellraw @a {"rawtext":[{"text":"§a[bdev] Connected to hot reload server!"}]}'
+          );
+        }
+      }, 500);
 
       socket.on("message", (data: string) => {
         try {
           const res = JSON.parse(data.toString());
           if (res?.body?.statusCode && res.body.statusCode !== 0) {
-            logger.warn(`Minecraft command warning: ${res.body.statusMessage || "Error"}`);
+            logger.warn(`Minecraft command response: ${res.body.statusMessage || "Error"}`);
           }
         } catch {
           // Ignore non-json responses
@@ -90,15 +98,20 @@ export class BedrockHotReloadServer {
   }
 
   private sendCommandToSocket(socket: WebSocket, commandLine: string): void {
+    const formatted = commandLine.startsWith("/") ? commandLine : `/${commandLine}`;
     const payload: BedrockCommandRequest = {
       header: {
         version: 1,
         requestId: uuidv4(),
+        messageType: "commandRequest",
         messagePurpose: "commandRequest",
       },
       body: {
-        commandLine,
         version: 1,
+        commandLine: formatted,
+        origin: {
+          type: "player",
+        },
       },
     };
     socket.send(JSON.stringify(payload));
@@ -110,7 +123,7 @@ export class BedrockHotReloadServer {
     }
     // Notify in game chat and execute reload command
     this.sendCommand('tellraw @a {"rawtext":[{"text":"§e[bdev] Reloading scripts..."}]}');
-    this.sendCommand("reload");
+    this.sendCommand("/reload");
   }
 
   public get clientCount(): number {
