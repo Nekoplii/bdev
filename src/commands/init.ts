@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { generateManifests } from "../utils/manifest.js";
 import { saveConfig } from "../utils/config.js";
+import { resolveMinecraftDependencies } from "../utils/npm.js";
 import { logger } from "../utils/logger.js";
 
 const DEFAULT_ICON_BASE64 =
@@ -33,13 +34,24 @@ export async function initCommand(
     fs.mkdirSync(targetDir, { recursive: true });
   }
 
+  const spinner = logger.spinner("Fetching latest @minecraft/* versions from npm...");
+  const mcVersions = await resolveMinecraftDependencies([
+    "@minecraft/server",
+    "@minecraft/server-ui",
+  ]);
+  const serverVersion = mcVersions["@minecraft/server"] || "2.11.0";
+  const serverUiVersion = mcVersions["@minecraft/server-ui"] || "2.3.0";
+  spinner.succeed(
+    `Resolved dependencies: @minecraft/server@${serverVersion}, @minecraft/server-ui@${serverUiVersion}`
+  );
+
   const { bpManifest, rpManifest } = generateManifests({
     name: projectName,
     description: projectDesc,
     hasScript: true,
     hasRp,
     minEngineVersion: [1, 21, 0],
-    serverVersion: "2.11.0",
+    serverVersion,
   });
 
   // 1. Behavior Pack
@@ -131,8 +143,8 @@ world.afterEvents.playerSpawn.subscribe((e) => {
       package: "bdev package",
     },
     dependencies: {
-      "@minecraft/server": "2.11.0",
-      "@minecraft/server-ui": "2.3.0",
+      "@minecraft/server": serverVersion,
+      "@minecraft/server-ui": serverUiVersion,
     },
   };
 
