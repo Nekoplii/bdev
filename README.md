@@ -1,5 +1,8 @@
 # bdev
 
+[![npm version](https://img.shields.io/npm/v/@mafly/bdev-cli.svg)](https://www.npmjs.com/package/@mafly/bdev-cli)
+[![license](https://img.shields.io/github/license/Nekoplii/bdev.svg)](./LICENSE)
+
 A simple CLI tool for Minecraft Bedrock Edition addon development.
 
 ---

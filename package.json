@@ -4,6 +4,14 @@
   "description": "Modern CLI tool for Minecraft Bedrock Edition Addon development",
   "author": "Mafly",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nekoplii/bdev.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Nekoplii/bdev/issues"
+  },
+  "homepage": "https://github.com/Nekoplii/bdev#readme",
   "publishConfig": {
     "access": "public"
   },
