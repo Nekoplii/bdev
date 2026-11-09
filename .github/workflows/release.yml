@@ -1,0 +1,78 @@
+name: Build and Release bdev
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    name: Build Standalone Binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Extract Tag Version
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Compile Standalone Binaries
+        run: |
+          VER="${{ steps.version.outputs.tag }}"
+          bun build ./src/index.ts --compile --target=bun-windows-x64 --outfile "bdev-${VER}-windows-x64.exe"
+          bun build ./src/index.ts --compile --target=bun-linux-x64 --outfile "bdev-${VER}-linux-x64"
+          bun build ./src/index.ts --compile --target=bun-linux-arm64 --outfile "bdev-${VER}-linux-arm64"
+          bun build ./src/index.ts --compile --target=bun-darwin-x64 --outfile "bdev-${VER}-macos-x64"
+          bun build ./src/index.ts --compile --target=bun-darwin-arm64 --outfile "bdev-${VER}-macos-arm64"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bdev-*-windows-x64.exe
+            bdev-*-linux-x64
+            bdev-*-linux-arm64
+            bdev-*-macos-x64
+            bdev-*-macos-arm64
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-npm:
+    name: Publish to NPM
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build NPM Package
+        run: npm run build:npm
+
+      - name: Publish to NPM Registry
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -2,13 +2,32 @@
   "name": "bdev",
   "version": "0.1.0",
   "description": "Modern CLI tool for Minecraft Bedrock Edition Addon development",
+  "author": "Mafly",
+  "license": "MIT",
   "bin": {
-    "bdev": "./src/index.ts"
+    "bdev": "./dist/index.js"
   },
   "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "minecraft",
+    "bedrock",
+    "addon",
+    "cli",
+    "esbuild",
+    "typescript",
+    "hot-reload"
+  ],
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build ./src/index.ts --compile --outfile bdev",
+    "build": "bun run build:binary",
+    "build:binary": "bun build ./src/index.ts --compile --outfile bdev",
+    "build:npm": "tsc --outDir dist",
+    "prepack": "npm run build:npm",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
