@@ -44,10 +44,38 @@ export function findMojangPath(
   const platform = os.platform();
 
   if (platform === "win32") {
+    const appData =
+      process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
     const localAppData =
       process.env.LOCALAPPDATA ||
       path.join(os.homedir(), "AppData", "Local");
 
+    // Modern Windows GDK Bedrock (Shared folder contains dev packs)
+    const gdkShared = path.join(
+      appData,
+      "Minecraft Bedrock",
+      "Users",
+      "Shared",
+      "games",
+      "com.mojang"
+    );
+    if (fs.existsSync(gdkShared)) {
+      return makeLocations(gdkShared, "retail");
+    }
+
+    const gdkPreviewShared = path.join(
+      appData,
+      "Minecraft Bedrock Preview",
+      "Users",
+      "Shared",
+      "games",
+      "com.mojang"
+    );
+    if (fs.existsSync(gdkPreviewShared)) {
+      return makeLocations(gdkPreviewShared, "preview");
+    }
+
+    // Classic UWP Retail
     const retail = path.join(
       localAppData,
       "Packages",
@@ -60,6 +88,7 @@ export function findMojangPath(
       return makeLocations(retail, "retail");
     }
 
+    // Classic UWP Preview
     const preview = path.join(
       localAppData,
       "Packages",
@@ -73,8 +102,62 @@ export function findMojangPath(
     }
   }
 
-  // Check WSL
+  // Check Linux / Bedrock-on-linux / Proton / WSL
   if (platform === "linux") {
+    // 1. Bedrock-on-Linux (Proton / Wine)
+    const bolBase = path.join(os.homedir(), ".local", "share", "bedrock-on-linux");
+    if (fs.existsSync(bolBase)) {
+      const profilesDir = path.join(bolBase, "profiles");
+      if (fs.existsSync(profilesDir)) {
+        try {
+          const profiles = fs.readdirSync(profilesDir);
+          for (const prof of profiles) {
+            const sharedPfx = path.join(
+              profilesDir,
+              prof,
+              "compatdata",
+              "pfx",
+              "drive_c",
+              "users",
+              "steamuser",
+              "AppData",
+              "Roaming",
+              "Minecraft Bedrock",
+              "Users",
+              "Shared",
+              "games",
+              "com.mojang"
+            );
+            if (fs.existsSync(sharedPfx)) {
+              return makeLocations(sharedPfx, "linux");
+            }
+          }
+        } catch {
+          // ignore profile read errors
+        }
+      }
+
+      const defaultShared = path.join(
+        bolBase,
+        "compatdata",
+        "pfx",
+        "drive_c",
+        "users",
+        "steamuser",
+        "AppData",
+        "Roaming",
+        "Minecraft Bedrock",
+        "Users",
+        "Shared",
+        "games",
+        "com.mojang"
+      );
+      if (fs.existsSync(defaultShared)) {
+        return makeLocations(defaultShared, "linux");
+      }
+    }
+
+    // 2. Check WSL
     try {
       const isWsl =
         Boolean(process.env.WSL_DISTRO_NAME) ||
@@ -85,6 +168,20 @@ export function findMojangPath(
         if (fs.existsSync(mntCUsers)) {
           const users = fs.readdirSync(mntCUsers);
           for (const u of users) {
+            const gdk = path.join(
+              mntCUsers,
+              u,
+              "AppData",
+              "Roaming",
+              "Minecraft Bedrock",
+              "Users",
+              "Shared",
+              "games",
+              "com.mojang"
+            );
+            if (fs.existsSync(gdk)) {
+              return makeLocations(gdk, "wsl");
+            }
             const retail = path.join(
               mntCUsers,
               u,
@@ -99,20 +196,6 @@ export function findMojangPath(
             if (fs.existsSync(retail)) {
               return makeLocations(retail, "wsl");
             }
-            const preview = path.join(
-              mntCUsers,
-              u,
-              "AppData",
-              "Local",
-              "Packages",
-              "Microsoft.MinecraftWindowsBeta_8wekyb3d8bbwe",
-              "LocalState",
-              "games",
-              "com.mojang"
-            );
-            if (fs.existsSync(preview)) {
-              return makeLocations(preview, "wsl");
-            }
           }
         }
       }
@@ -120,7 +203,7 @@ export function findMojangPath(
       // Ignore read errors
     }
 
-    // Native Linux launcher locations
+    // 3. Native Linux mcpelauncher locations
     const linuxMcpelauncherPaths = [
       path.join(os.homedir(), ".var", "app", "io.mrarm.mcpelauncher", "data", "mcpelauncher", "games", "com.mojang"),
       path.join(os.homedir(), ".local", "share", "mcpelauncher", "games", "com.mojang"),
@@ -140,10 +223,22 @@ function makeLocations(
   root: string,
   type: MojangLocations["type"]
 ): MojangLocations {
+  // If pointing to a specific user XUID directory in Bedrock GDK (e.g. Users/<XUID>/games/com.mojang),
+  // Bedrock GDK only scans packs from Users/Shared/games/com.mojang.
+  let packsRoot = root;
+  try {
+    const sharedCandidate = path.resolve(root, "..", "..", "..", "Shared", "games", "com.mojang");
+    if (fs.existsSync(sharedCandidate)) {
+      packsRoot = sharedCandidate;
+    }
+  } catch {
+    // Ignore resolution errors
+  }
+
   return {
-    root,
-    devBehaviorPacks: path.join(root, "development_behavior_packs"),
-    devResourcePacks: path.join(root, "development_resource_packs"),
+    root: packsRoot,
+    devBehaviorPacks: path.join(packsRoot, "development_behavior_packs"),
+    devResourcePacks: path.join(packsRoot, "development_resource_packs"),
     type,
   };
 }

@@ -57,15 +57,19 @@ export class BedrockHotReloadServer {
       this.clients.add(socket);
       logger.success(pc.green("Minecraft connected to WebSocket hot reload!"));
 
-      // Delay welcome message 500ms so Bedrock completes internal handshake
-      setTimeout(() => {
-        if (socket.readyState === WebSocket.OPEN) {
-          this.sendCommandToSocket(
-            socket,
-            'tellraw @a {"rawtext":[{"text":"§a[bdev] Connected to hot reload server!"}]}'
-          );
-        }
-      }, 500);
+      // Bedrock expects an event subscription to establish connection cleanly
+      const subscribePayload = {
+        header: {
+          version: 1,
+          requestId: uuidv4(),
+          messageType: "commandRequest",
+          messagePurpose: "subscribe",
+        },
+        body: {
+          eventName: "PlayerMessage",
+        },
+      };
+      socket.send(JSON.stringify(subscribePayload));
 
       socket.on("message", (data: string) => {
         try {
@@ -98,7 +102,8 @@ export class BedrockHotReloadServer {
   }
 
   private sendCommandToSocket(socket: WebSocket, commandLine: string): void {
-    const formatted = commandLine.startsWith("/") ? commandLine : `/${commandLine}`;
+    // Bedrock commandLine must NOT have a leading slash
+    const cleanCmd = commandLine.startsWith("/") ? commandLine.slice(1) : commandLine;
     const payload: BedrockCommandRequest = {
       header: {
         version: 1,
@@ -108,7 +113,7 @@ export class BedrockHotReloadServer {
       },
       body: {
         version: 1,
-        commandLine: formatted,
+        commandLine: cleanCmd,
         origin: {
           type: "player",
         },
@@ -121,9 +126,7 @@ export class BedrockHotReloadServer {
     if (this.clients.size === 0) {
       return;
     }
-    // Notify in game chat and execute reload command
-    this.sendCommand('tellraw @a {"rawtext":[{"text":"§e[bdev] Reloading scripts..."}]}');
-    this.sendCommand("/reload");
+    this.sendCommand("reload");
   }
 
   public get clientCount(): number {
