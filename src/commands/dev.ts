@@ -25,7 +25,7 @@ export async function devCommand(
   const bpDir = path.join(rootDir, "behavior_pack");
   const rpDir = path.join(rootDir, "resource_pack");
   const hasBp = fs.existsSync(bpDir);
-  const hasRp = fs.existsSync(rpDir);
+  let hasRp = fs.existsSync(rpDir);
 
   if (!hasBp && !hasRp) {
     logger.error(`No behavior_pack or resource_pack found in ${rootDir}. Run 'bdev init' first.`);
@@ -50,8 +50,8 @@ export async function devCommand(
 
   // 2. Setup symlinks to com.mojang
   const shouldLink = options.link !== false;
+  const mojang = shouldLink ? findMojangPath(options.path, rootDir) : null;
   if (shouldLink) {
-    const mojang = findMojangPath(options.path, rootDir);
     if (!mojang) {
       logger.warn("Minecraft com.mojang directory not found.");
       logger.warn("Tip: Set with 'bdev set-path <path>' or pass '-p <path>' or 'BEDROCK_MOJANG_PATH'.");
@@ -113,6 +113,10 @@ export async function devCommand(
   if (hasRp) {
     watchPaths.push(rpDir);
   }
+  const pkgJsonPath = path.join(rootDir, "package.json");
+  if (fs.existsSync(pkgJsonPath)) {
+    watchPaths.push(pkgJsonPath);
+  }
 
   logger.info(`Starting file watcher on: ${watchPaths.map((p) => path.relative(rootDir, p)).join(", ")}`);
   logger.info("Press Ctrl+C to stop.");
@@ -147,6 +151,22 @@ export async function devCommand(
     const rel = path.relative(rootDir, triggerPath);
 
     try {
+      // If resource_pack was added while dev server is running
+      if (!hasRp && fs.existsSync(rpDir)) {
+        hasRp = true;
+        watcher.add(rpDir);
+        logger.info("Detected new Resource Pack. Watching resource_pack...");
+        if (shouldLink && mojang) {
+          const destRp = path.join(mojang.devResourcePacks, `${folderName}_RP`);
+          try {
+            linkPack(rpDir, destRp);
+            logger.success(`Linked Resource Pack -> ${destRp}`);
+          } catch (err) {
+            logger.error(`Failed to link Resource Pack: ${(err as Error).message}`);
+          }
+        }
+      }
+
       if (triggerPath.endsWith("manifest.json")) {
         const res = validateManifest(triggerPath);
         if (res.valid) {

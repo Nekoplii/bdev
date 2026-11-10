@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import { generateManifests } from "../utils/manifest.js";
+import {
+  generateManifests,
+  addResourcePack,
+  DEFAULT_ICON_BASE64,
+} from "../utils/manifest.js";
 import { saveConfig } from "../utils/config.js";
 import { resolveMinecraftDependencies } from "../utils/npm.js";
 import { logger } from "../utils/logger.js";
-
-const DEFAULT_ICON_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
 export interface InitOptions {
   name?: string;
@@ -25,6 +26,24 @@ export async function initCommand(
   const projectDesc = options.desc || `${projectName} - Bedrock Addon created with bdev`;
   const isTs = options.lang !== "js";
   const hasRp = options.rp !== false;
+
+  const existingBpManifest = path.join(targetDir, "behavior_pack", "manifest.json");
+  if (fs.existsSync(existingBpManifest)) {
+    if (hasRp) {
+      const existingRpManifest = path.join(targetDir, "resource_pack", "manifest.json");
+      if (!fs.existsSync(existingRpManifest)) {
+        logger.info("Existing Behavior Pack project detected without Resource Pack.");
+        addResourcePack(targetDir, { name: projectName, description: projectDesc });
+        return;
+      } else {
+        logger.warn("Project already initialized with Behavior Pack and Resource Pack.");
+        return;
+      }
+    } else {
+      logger.warn("Project is already initialized.");
+      return;
+    }
+  }
 
   logger.info(`Scaffolding Bedrock Addon project: ${projectName}`);
   logger.info(`Directory: ${targetDir}`);

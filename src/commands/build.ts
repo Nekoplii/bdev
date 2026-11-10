@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runBuild } from "../utils/bundler.js";
-import { validateManifest } from "../utils/manifest.js";
+import { validateManifest, syncManifestDependencies } from "../utils/manifest.js";
 import { logger } from "../utils/logger.js";
 
 export interface BuildOptions {
@@ -17,6 +17,9 @@ export async function buildCommand(
   const rootDir = path.resolve(dirArg || ".");
   const bpDir = path.join(rootDir, "behavior_pack");
   const bpManifestPath = path.join(bpDir, "manifest.json");
+
+  // Sync @minecraft/* dependencies from package.json into manifest.json
+  syncManifestDependencies(rootDir);
 
   // 1. Validate Behavior Pack Manifest
   if (!fs.existsSync(bpManifestPath)) {

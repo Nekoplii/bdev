@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 import { initCommand } from "./commands/init.js";
+import { addCommand } from "./commands/add.js";
 import { buildCommand } from "./commands/build.js";
 import { devCommand } from "./commands/dev.js";
 import { packageCommand } from "./commands/package.js";
@@ -31,6 +32,20 @@ program
   .action(async (directory, options) => {
     try {
       await initCommand(directory, options);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("add <component> [directory]")
+  .description("Add components (e.g. 'rp' or 'resource-pack') to an existing addon project")
+  .option("-n, --name <name>", "Pack name")
+  .option("-d, --desc <description>", "Pack description")
+  .action(async (component, directory, options) => {
+    try {
+      await addCommand(component, directory, options);
     } catch (err) {
       console.error((err as Error).message);
       process.exit(1);
