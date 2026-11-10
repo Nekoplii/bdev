@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runBuild } from "../utils/bundler.js";
-import { validateManifest, syncManifestDependencies } from "../utils/manifest.js";
+import {
+  validateManifest,
+  syncManifestDependencies,
+  addResourcePack,
+} from "../utils/manifest.js";
 import { logger } from "../utils/logger.js";
 
 export interface BuildOptions {
@@ -41,6 +45,11 @@ export async function buildCommand(
   // Validate Resource Pack Manifest if exists
   const rpDir = path.join(rootDir, "resource_pack");
   const rpManifestPath = path.join(rpDir, "manifest.json");
+  if (fs.existsSync(rpDir) && !fs.existsSync(rpManifestPath)) {
+    logger.info("Found resource_pack folder without manifest. Initializing Resource Pack...");
+    addResourcePack(rootDir);
+  }
+
   if (fs.existsSync(rpManifestPath)) {
     const rpValidation = validateManifest(rpManifestPath);
     if (!rpValidation.valid) {

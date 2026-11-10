@@ -7,7 +7,7 @@ import { findMojangPath, linkPack } from "../utils/mojang.js";
 import { saveConfig } from "../utils/config.js";
 import { BedrockHotReloadServer } from "../utils/wsserver.js";
 import { logger } from "../utils/logger.js";
-import { validateManifest } from "../utils/manifest.js";
+import { validateManifest, getLastManifestSyncTime } from "../utils/manifest.js";
 
 export interface DevOptions {
   path?: string;
@@ -204,6 +204,14 @@ export async function devCommand(
   };
 
   const triggerRebuild = (filePath: string) => {
+    // Ignore internal writes to manifest.json caused by syncManifestDependencies
+    if (
+      filePath.endsWith("manifest.json") &&
+      Date.now() - getLastManifestSyncTime() < 600
+    ) {
+      return;
+    }
+
     const rel = path.relative(rootDir, filePath);
     logger.info(`Change detected in ${rel}`);
 

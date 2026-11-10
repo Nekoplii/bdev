@@ -348,6 +348,12 @@ export function addResourcePack(
   return true;
 }
 
+let lastManifestSyncTime = 0;
+
+export function getLastManifestSyncTime(): number {
+  return lastManifestSyncTime;
+}
+
 export function syncManifestDependencies(rootDir: string): boolean {
   const pkgPath = path.join(rootDir, "package.json");
   const bpManifestPath = path.join(rootDir, "behavior_pack", "manifest.json");
@@ -462,6 +468,7 @@ export function syncManifestDependencies(rootDir: string): boolean {
   }
 
   if (modified) {
+    lastManifestSyncTime = Date.now();
     fs.writeFileSync(bpManifestPath, JSON.stringify(bpManifest, null, 2) + "\n");
     logger.success(`Synchronized manifest.json dependencies: ${updatedModules.join(", ")}`);
     return true;
