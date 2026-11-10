@@ -122,8 +122,11 @@ export async function devCommand(
   logger.info("Press Ctrl+C to stop.");
 
   let isRebuilding = false;
-  let rebuildPending = false;
+  let queuedFilePath: string | null = null;
   let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
+  let lastReloadTime = 0;
+  const RELOAD_COOLDOWN_MS = 1200;
+  const DEBOUNCE_MS = 350;
 
   const ignoredPatterns: (RegExp | string)[] = [
     /(^|[/\\])\../, // dotfiles
@@ -144,11 +147,27 @@ export async function devCommand(
     ignoreInitial: true,
   });
 
+  const scheduleRebuild = (filePath: string) => {
+    queuedFilePath = filePath;
+    if (rebuildTimeout) {
+      clearTimeout(rebuildTimeout);
+    }
+    rebuildTimeout = setTimeout(() => {
+      rebuildTimeout = null;
+      if (!isRebuilding && queuedFilePath) {
+        const target = queuedFilePath;
+        queuedFilePath = null;
+        runRebuildCycle(target);
+      }
+    }, DEBOUNCE_MS);
+  };
+
   const runRebuildCycle = async (triggerPath: string) => {
     isRebuilding = true;
-    rebuildPending = false;
 
     const rel = path.relative(rootDir, triggerPath);
+    const isManifestRelated =
+      triggerPath.endsWith("manifest.json") || triggerPath.endsWith("package.json");
 
     try {
       // If resource_pack was added while dev server is running
@@ -182,9 +201,19 @@ export async function devCommand(
         const buildOk = await buildCommand(rootDir);
         if (buildOk && hotReloadServer) {
           if (hotReloadServer.clientCount > 0) {
-            // Buffer 150ms before reload command so Proton/Wine file cache flushes
-            await new Promise((resolve) => setTimeout(resolve, 150));
+            // Buffer 200ms before reload command so Proton/Wine file cache flushes
+            await new Promise((resolve) => setTimeout(resolve, 200));
+
+            // Enforce reload cooldown so rapid saves cannot crash Minecraft scripting engine
+            const elapsed = Date.now() - lastReloadTime;
+            if (elapsed < RELOAD_COOLDOWN_MS) {
+              await new Promise((resolve) =>
+                setTimeout(resolve, RELOAD_COOLDOWN_MS - elapsed)
+              );
+            }
+
             hotReloadServer.reload();
+            lastReloadTime = Date.now();
             logger.success("Sent /reload to Minecraft via WebSocket");
           } else {
             logger.info(
@@ -193,12 +222,20 @@ export async function devCommand(
           }
         }
       }
+
+      if (isManifestRelated) {
+        logger.warn(
+          "Note: Minecraft /reload only reloads scripts. Re-enter world to apply manifest/package.json changes."
+        );
+      }
     } catch (err) {
       logger.error(`Error during rebuild: ${(err as Error).message}`);
     } finally {
       isRebuilding = false;
-      if (rebuildPending) {
-        runRebuildCycle(triggerPath);
+      if (queuedFilePath) {
+        const nextTarget = queuedFilePath;
+        queuedFilePath = null;
+        scheduleRebuild(nextTarget);
       }
     }
   };
@@ -216,17 +253,11 @@ export async function devCommand(
     logger.info(`Change detected in ${rel}`);
 
     if (isRebuilding) {
-      rebuildPending = true;
+      queuedFilePath = filePath;
       return;
     }
 
-    if (rebuildTimeout) {
-      clearTimeout(rebuildTimeout);
-    }
-
-    rebuildTimeout = setTimeout(() => {
-      runRebuildCycle(filePath);
-    }, 300);
+    scheduleRebuild(filePath);
   };
 
   watcher.on("change", triggerRebuild);
